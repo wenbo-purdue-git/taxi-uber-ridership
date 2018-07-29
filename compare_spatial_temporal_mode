@@ -1,0 +1,561 @@
+library(ctv)
+library(maptools)
+library(rgdal)
+library(spdep)
+library(data.table)
+library(splm)
+library(plm)
+library(geosphere)
+
+weightfun<-function (distman,dist) {
+	weight=ifelse(distman<=dist & distman>0,exp(-0.5*(distman/dist)^2),0)
+      a=nrow(weight)
+         for (i in 1:a) {
+            if (sum(weight[i,])>0) {
+             weight[i,]=weight[i,]/sum(weight[i,])
+             }else{
+                  weight[i,]=0      
+                }
+}
+return(weight)
+}
+distance<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distance.csv")
+distance=data.matrix(distance)
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+
+
+weight_uber=weightfun(distance,10)
+weight_gr=weightfun(distance,6.5)
+
+w_yg=c()
+w_ub=c()
+for (i in 1:183) {
+temp_yg=weight_gr%*%all$log_yg[((i-1)*214+1):(i*214)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight_uber%*%all$log_ub[((i-1)*214+1):(i*214)]
+w_ub=c(w_ub,temp_ub)
+}
+
+all$w_yg=w_yg
+all$w_ub=w_ub
+pall=pdata.frame(all,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+aa+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+aa+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+r.squared(yg_plm)
+yg_plm$coefficients[['w_yg']]
+summary(yg_plm)[['fstatistics']]
+
+r.squared(ub_plm)
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistics']]
+
+###at airport
+all_air=all[(all$zcta=="11430" | all$zcta=="11371"),]
+pall=pdata.frame(all_air,index=c("zcta","days"))
+yg_func=log_yg~ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+r.squared(yg_plm)
+summary(yg_plm)[['fstatistic']]
+
+r.squared(ub_plm)
+summary(ub_plm)[['fstatistic']]
+
+
+##airport weekday/weekend normal
+
+all_air_week=all[(all$aa==1 & all$weekday<6),]
+all_air_weekend=all[(all$aa==1 & all$weekday>5),]
+
+pall=pdata.frame(all_air_week,index=c("zcta","days"))
+pall_weekend=pdata.frame(all_air_weekend,index=c("zcta","days"))
+
+yg_func=log_yg~ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+
+yg_plm_weekend=plm(yg_func,data=pall_weekend,model="within")
+ub_plm_weekend=plm(ub_func,data=pall_weekend,model="within")
+
+r.squared(yg_plm)
+summary(yg_plm)[['fstatistic']]
+
+r.squared(ub_plm)
+summary(ub_plm)[['fstatistic']]
+
+r.squared(yg_plm_weekend)
+summary(yg_plm_weekend)[['fstatistic']]
+
+r.squared(ub_plm_weekend)
+summary(ub_plm_weekend)[['fstatistic']]
+
+##airport weekday/weekend friday
+
+all_air_week=all[(all$aa==1 & all$weekday<5),]
+all_air_weekend=all[(all$aa==1 & all$weekday>4),]
+
+pall=pdata.frame(all_air_week,index=c("zcta","days"))
+pall_weekend=pdata.frame(all_air_weekend,index=c("zcta","days"))
+
+yg_func=log_yg~ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+
+yg_plm_weekend=plm(yg_func,data=pall_weekend,model="within")
+ub_plm_weekend=plm(ub_func,data=pall_weekend,model="within")
+
+r.squared(yg_plm)
+summary(yg_plm)[['fstatistic']]
+
+r.squared(ub_plm)
+summary(ub_plm)[['fstatistic']]
+
+r.squared(yg_plm_weekend)
+summary(yg_plm_weekend)[['fstatistic']]
+
+r.squared(ub_plm_weekend)
+summary(ub_plm_weekend)[['fstatistic']]
+
+
+
+
+## at manhattan
+
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+man=all[all$mark==0 & all$aa==0,]
+mandist<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distman.csv")
+
+distman=data.matrix(mandist)
+
+weightfun<-function (distman,dist) {
+	weight=ifelse(distman<=dist & distman>0,exp(-0.5*(distman/dist)^2),0)
+      a=nrow(weight)
+         for (i in 1:a) {
+            if (sum(weight[i,])>0) {
+             weight[i,]=weight[i,]/sum(weight[i,])
+             }else{
+                  weight[i,]=0      
+                }
+}
+return(weight)
+}
+
+r_gr=c()
+r_ub=c()
+r_g=c()
+r_y=c()
+
+for (j in seq(0.5,7.5,0.5)){
+weight=weightfun(distman,j)
+w_yg=c()
+w_ub=c()
+w_y=c()
+w_g=c()
+for (i in 1:183) {
+temp_yg=weight%*%oman$log_yg[((i-1)*55+1):(i*55)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight%*%oman$log_ub[((i-1)*55+1):(i*55)]
+w_ub=c(w_ub,temp_ub)
+}
+
+man$w_yg=w_yg
+man$w_ub=w_ub
+pall=pdata.frame(man,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+
+r_gr=c(r_gr,r.squared(yg_plm))
+r_ub=c(r_ub,r.squared(ub_plm))
+print(j)
+}
+spatial_auto_dist=data.frame(bandwidth=seq(0.5,7.5,0.5),r_gr=r_gr,r_ub=r_ub)
+fwrite(spatial_auto_dist,"C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\area_mode_man.csv")
+
+
+man=all[all$mark==0 & all$aa==0,]
+distance=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distman.csv",sep=",")
+distance=data.matrix(distance)
+
+weight=weightfun(distance,1.5)
+w_yg=c()
+w_ub=c()
+for (i in 1:183) {
+temp_yg=weight%*%man$log_yg[((i-1)*55+1):(i*55)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight%*%man$log_ub[((i-1)*55+1):(i*55)]
+w_ub=c(w_ub,temp_ub)
+}
+
+man$w_yg=w_yg
+man$w_ub=w_ub
+pall=pdata.frame(man,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+r.squared(yg_plm)
+yg_plm$coefficients[['w_yg']]
+summary(yg_plm)[['fstatistic']]
+
+r.squared(ub_plm)
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistic']]
+
+
+
+##man weekday
+mandist<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distman.csv")
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+man=all[all$mark==0 & all$aa==0,]
+distman=data.matrix(mandist)
+
+weight=weightfun(distman,1.5)
+w_yg=c()
+w_ub=c()
+for (i in 1:183) {
+temp_yg=weight%*%man$log_yg[((i-1)*55+1):(i*55)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight%*%man$log_ub[((i-1)*55+1):(i*55)]
+w_ub=c(w_ub,temp_ub)
+
+}
+
+man$w_yg=w_yg
+man$w_ub=w_ub
+
+
+man_weekend=man[man$weekday>5,]
+man_weekday=man[man$weekday<6,]
+
+pall=pdata.frame(man_weekday,index=c("zcta","days"))
+pall_weekend=pdata.frame(man_weekend,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+
+yg_plm_weekend=plm(yg_func,data=pall_weekend,model="within")
+ub_plm_weekend=plm(ub_func,data=pall_weekend,model="within")
+
+
+r.squared(yg_plm)
+yg_plm$coefficients[['w_yg']]
+summary(yg_plm)[['fstatistic']]
+
+r.squared(ub_plm)
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistic']]
+
+
+r.squared(yg_plm_weekend)
+yg_plm_weekend$coefficients[['w_yg']]
+summary(yg_plm_weekend)[['fstatistic']]
+
+r.squared(ub_plm_weekend)
+ub_plm_weekend$coefficients[['w_ub']]
+summary(ub_plm_weekend)[['fstatistic']]
+
+
+###friday
+
+man_weekend=man[man$weekday>4,]
+man_weekday=man[man$weekday<5,]
+
+pall=pdata.frame(man_weekday,index=c("zcta","days"))
+pall_weekend=pdata.frame(man_weekend,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+
+yg_plm_weekend=plm(yg_func,data=pall_weekend,model="within")
+ub_plm_weekend=plm(ub_func,data=pall_weekend,model="within")
+
+
+r.squared(yg_plm)
+yg_plm$coefficients[['w_yg']]
+summary(yg_plm)[['fstatistic']]
+
+r.squared(ub_plm)
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistic']]
+
+
+r.squared(yg_plm_weekend)
+yg_plm_weekend$coefficients[['w_yg']]
+summary(yg_plm_weekend)[['fstatistic']]
+
+r.squared(ub_plm_weekend)
+ub_plm_weekend$coefficients[['w_ub']]
+summary(ub_plm_weekend)[['fstatistic']]
+
+
+
+
+##out manhattan
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+oman=all[all$mark==1,]
+outman<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distoman_no_airport.csv")
+
+distoman=data.matrix(outman)
+
+weightfun<-function (distman,dist) {
+	weight=ifelse(distman<=dist & distman>0,exp(-0.5*(distman/dist)^2),0)
+      a=nrow(weight)
+         for (i in 1:a) {
+            if (sum(weight[i,])>0) {
+             weight[i,]=weight[i,]/sum(weight[i,])
+             }else{
+                  weight[i,]=0      
+                }
+}
+return(weight)
+}
+
+r_gr=c()
+r_ub=c()
+r_g=c()
+r_y=c()
+
+for (j in seq(1,34,1)){
+weight=weightfun(distoman,j)
+w_yg=c()
+w_ub=c()
+w_y=c()
+w_g=c()
+for (i in 1:183) {
+temp_yg=weight%*%oman$log_yg[((i-1)*157+1):(i*157)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight%*%oman$log_ub[((i-1)*157+1):(i*157)]
+w_ub=c(w_ub,temp_ub)
+temp_y=weight%*%oman$log_yt[((i-1)*157+1):(i*157)]
+w_y=c(w_y,temp_y)
+temp_g=weight%*%oman$log_gt[((i-1)*157+1):(i*157)]
+w_g=c(w_g,temp_g)
+}
+
+oman$w_yg=w_yg
+oman$w_ub=w_ub
+oman$w_y=w_y
+oman$w_g=w_g
+pall=pdata.frame(oman,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+y_func=log_yt~w_y+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+g_func=log_gt~w_g+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+y_plm=plm(y_func,data=pall,model="within")
+g_plm=plm(g_func,data=pall,model="within")
+
+r_gr=c(r_gr,r.squared(yg_plm))
+r_ub=c(r_ub,r.squared(ub_plm))
+r_g=c(r_g,r.squared(g_plm))
+r_y=c(r_y,r.squared(y_plm))
+print(j)
+}
+spatial_auto_dist=data.frame(bandwidth=seq(1,34,1),r_gr=r_gr,r_g=r_g,r_ub=r_ub,r_y=r_y)
+fwrite(spatial_auto_dist,"C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\area_mode.csv")
+
+
+
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+oman=all[all$mark==1,]
+outman<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distoman_no_airport.csv")
+
+distoman=data.matrix(outman)
+
+
+weight1=weightfun(distoman,11)
+weightg=weightfun(distoman,6)
+weightyg=weightfun(distoman,2)
+
+
+w_yg=c()
+w_ub=c()
+w_y=c()
+w_g=c()
+for (i in 1:183) {
+temp_yg=weightyg%*%oman$log_yg[((i-1)*157+1):(i*157)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight1%*%oman$log_ub[((i-1)*157+1):(i*157)]
+w_ub=c(w_ub,temp_ub)
+temp_y=weight1%*%oman$log_yt[((i-1)*157+1):(i*157)]
+w_y=c(w_y,temp_y)
+temp_g=weightg%*%oman$log_gt[((i-1)*157+1):(i*157)]
+w_g=c(w_g,temp_g)
+}
+
+oman$w_yg=w_yg
+oman$w_ub=w_ub
+oman$w_y=w_y
+oman$w_g=w_g
+pall=pdata.frame(oman,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+y_func=log_yt~w_y+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+g_func=log_gt~w_g+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+y_plm=plm(y_func,data=pall,model="within")
+g_plm=plm(g_func,data=pall,model="within")
+
+r.squared(yg_plm)
+r.squared(ub_plm)
+r.squared(g_plm)
+r.squared(y_plm)
+
+yg_plm$coefficients[['w_yg']]
+summary(yg_plm)[['fstatistic']]
+
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistic']]
+
+y_plm$coefficients[['w_y']]
+summary(y_plm)[['fstatistic']]
+g_plm$coefficients[['w_g']]
+summary(g_plm)[['fstatistic']]
+
+###weekday
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+oman=all[all$mark==1,]
+outman<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distoman_no_airport.csv")
+
+distoman=data.matrix(outman)
+
+
+weight1=weightfun(distoman,11)
+weightg=weightfun(distoman,6)
+weightyg=weightfun(distoman,2)
+
+
+w_yg=c()
+w_ub=c()
+w_y=c()
+w_g=c()
+for (i in 1:183) {
+temp_yg=weightyg%*%oman$log_yg[((i-1)*157+1):(i*157)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight1%*%oman$log_ub[((i-1)*157+1):(i*157)]
+w_ub=c(w_ub,temp_ub)
+temp_y=weight1%*%oman$log_yt[((i-1)*157+1):(i*157)]
+w_y=c(w_y,temp_y)
+temp_g=weightg%*%oman$log_gt[((i-1)*157+1):(i*157)]
+w_g=c(w_g,temp_g)
+}
+
+oman$w_yg=w_yg
+oman$w_ub=w_ub
+oman$w_y=w_y
+oman$w_g=w_g
+
+oman_weekend=oman[oman$weekday>5,]
+oman_weekday=oman[oman$weekday<6,]
+
+pall=pdata.frame(oman_weekday,index=c("zcta","days"))
+pall_weekend=pdata.frame(oman_weekend,index=c("zcta","days"))
+
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+y_func=log_yt~w_y+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+g_func=log_gt~w_g+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+ub_plm=plm(ub_func,data=pall,model="within")
+y_plm=plm(y_func,data=pall,model="within")
+g_plm=plm(g_func,data=pall,model="within")
+
+ub_plm_weekend=plm(ub_func,data=pall_weekend,model="within")
+y_plm_weekend=plm(y_func,data=pall_weekend,model="within")
+g_plm_weekend=plm(g_func,data=pall_weekend,model="within")
+
+r.squared(ub_plm)
+r.squared(g_plm)
+r.squared(y_plm)
+
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistic']]
+
+y_plm$coefficients[['w_y']]
+summary(y_plm)[['fstatistic']]
+g_plm$coefficients[['w_g']]
+summary(g_plm)[['fstatistic']]
+
+
+r.squared(ub_plm_weekend)
+r.squared(g_plm_weekend)
+r.squared(y_plm_weekend)
+
+ub_plm_weekend$coefficients[['w_ub']]
+summary(ub_plm_weekend)[['fstatistic']]
+
+y_plm_weekend$coefficients[['w_y']]
+summary(y_plm_weekend)[['fstatistic']]
+g_plm_weekend$coefficients[['w_g']]
+summary(g_plm_weekend)[['fstatistic']]
+
+
+###friday
+
+oman_weekend=oman[oman$weekday>4,]
+oman_weekday=oman[oman$weekday<5,]
+
+pall=pdata.frame(oman_weekday,index=c("zcta","days"))
+pall_weekend=pdata.frame(oman_weekend,index=c("zcta","days"))
+
+ub_func=log_ub~w_ub+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+y_func=log_yt~w_y+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+g_func=log_gt~w_g+ct+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+ub_plm=plm(ub_func,data=pall,model="within")
+y_plm=plm(y_func,data=pall,model="within")
+g_plm=plm(g_func,data=pall,model="within")
+
+ub_plm_weekend=plm(ub_func,data=pall_weekend,model="within")
+y_plm_weekend=plm(y_func,data=pall_weekend,model="within")
+g_plm_weekend=plm(g_func,data=pall_weekend,model="within")
+
+r.squared(ub_plm)
+r.squared(g_plm)
+r.squared(y_plm)
+
+ub_plm$coefficients[['w_ub']]
+summary(ub_plm)[['fstatistic']]
+
+y_plm$coefficients[['w_y']]
+summary(y_plm)[['fstatistic']]
+g_plm$coefficients[['w_g']]
+summary(g_plm)[['fstatistic']]
+
+
+r.squared(ub_plm_weekend)
+r.squared(g_plm_weekend)
+r.squared(y_plm_weekend)
+
+ub_plm_weekend$coefficients[['w_ub']]
+summary(ub_plm_weekend)[['fstatistic']]
+
+y_plm_weekend$coefficients[['w_y']]
+summary(y_plm_weekend)[['fstatistic']]
+g_plm_weekend$coefficients[['w_g']]
+summary(g_plm_weekend)[['fstatistic']]
+

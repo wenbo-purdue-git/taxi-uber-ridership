@@ -1,0 +1,132 @@
+##generate contiguity based weight matrix
+library(ctv)
+library(maptools)
+library(rgdal)
+library(spdep)
+library(data.table)
+library(splm)
+library(plm)
+
+##read shapefile (zcta) and generate neighbor lists
+zcta<-readOGR("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\shapefile\\revised_NYC.shp",layer="revised_NYC")
+
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+
+r_gr=c()
+rho_gr=c()
+r_ub=c()
+rho_ub=c()
+moran_gr=c()
+moran_ub=c()
+for (j in 1:50) {
+#first-order neighbor list
+if (j==1) {
+zcta_neighbor<-poly2nb(zcta)
+}
+else {
+#higher order neighbor list
+zcta_neighbor=nblag(zcta_neighbor, j)
+zcta_neighbor=nblag_cumul(zcta_neighbor)
+}
+contiguity_matrix<-nb2mat(zcta_neighbor)
+zcta_weight<-nb2listw(zcta_neighbor)
+w_yg=c()
+w_ub=c()
+moran_test_gr=c()
+moran_test_ub=c()
+for (i in 1:183) {
+temp_yg=contiguity_matrix%*%all$log_yg[((i-1)*214+1):(i*214)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=contiguity_matrix%*%all$log_ub[((i-1)*214+1):(i*214)]
+w_ub=c(w_ub,temp_ub)
+temp_test_gr=moran.test(all$log_yg[((i-1)*214+1):(i*214)],listw=zcta_weight)$p.value
+moran_test_gr=c(moran_test_gr,temp_test_gr)
+temp_test_ub=moran.test(all$log_ub[((i-1)*214+1):(i*214)],listw=zcta_weight)$p.value
+moran_test_ub=c(moran_test_ub,temp_test_ub)
+}
+moran_gr=c(moran_gr,length(which(moran_test_gr<=0.05))/length(moran_test_gr))
+moran_ub=c(moran_ub,length(which(moran_test_ub<=0.05))/length(moran_test_ub))
+
+all$w_yg=w_yg
+all$w_ub=w_ub
+pall=pdata.frame(all,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+aa+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+aa+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+r_gr=c(r_gr,r.squared(yg_plm))
+rho_gr=c(rho_gr,yg_plm$coefficients[['w_yg']])
+r_ub=c(r_ub,r.squared(ub_plm))
+rho_ub=c(rho_ub,ub_plm$coefficients[['w_ub']])
+
+}
+
+spatial_auto=data.frame(order=c(1:50),moran_gr=moran_gr,moran_ub=moran_ub,r_gr=r_gr,rho_gr=rho_gr,r_ub=r_ub,rho_ub=rho_ub)
+
+fwrite(spatial_auto,"C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\spatial_auto_conti.csv")
+
+#####distance based weight matrix
+weightfun<-function (distman,dist) {
+	weight=ifelse(distman<=dist & distman>0,exp(-0.5*(distman/dist)^2),0)
+      a=nrow(weight)
+         for (i in 1:a) {
+            if (sum(weight[i,])>0) {
+             weight[i,]=weight[i,]/sum(weight[i,])
+             }else{
+                  weight[i,]=0      
+                }
+}
+return(weight)
+}
+distance<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distance.csv")
+distance=data.matrix(distance)
+
+r_gr=c()
+rho_gr=c()
+r_ub=c()
+rho_ub=c()
+moran_gr=c()
+moran_ub=c()
+
+for (j in seq(0.5,34,0.5)){
+weight=weightfun(distance,j)
+weight1=mat2listw(weight)
+w_yg=c()
+w_ub=c()
+moran_test_gr=c()
+moran_test_ub=c()
+for (i in 1:183) {
+temp_yg=weight%*%all$log_yg[((i-1)*214+1):(i*214)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight%*%all$log_ub[((i-1)*214+1):(i*214)]
+w_ub=c(w_ub,temp_ub)
+temp_test_gr=moran.test(all$log_yg[((i-1)*214+1):(i*214)],listw=weight1,zero.policy=TRUE)$p.value
+moran_test_gr=c(moran_test_gr,temp_test_gr)
+temp_test_ub=moran.test(all$log_ub[((i-1)*214+1):(i*214)],listw=weight1,zero.policy=TRUE)$p.value
+moran_test_ub=c(moran_test_ub,temp_test_ub)
+}
+moran_gr=c(moran_gr,length(which(moran_test_gr<=0.05))/length(moran_test_gr))
+moran_ub=c(moran_ub,length(which(moran_test_ub<=0.05))/length(moran_test_ub))
+
+all$w_yg=w_yg
+all$w_ub=w_ub
+pall=pdata.frame(all,index=c("zcta","days"))
+
+yg_func=log_yg~w_yg+ct+aa+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+ub_func=log_ub~w_ub+ct+aa+Comercial+br+bs+da+ep+gp+h75+hr+ms+na+ne+pd+ps+vo+wh+mark
+
+yg_plm=plm(yg_func,data=pall,model="within")
+ub_plm=plm(ub_func,data=pall,model="within")
+r_gr=c(r_gr,r.squared(yg_plm))
+rho_gr=c(rho_gr,yg_plm$coefficients[['w_yg']])
+r_ub=c(r_ub,r.squared(ub_plm))
+rho_ub=c(rho_ub,ub_plm$coefficients[['w_ub']])
+print(j)
+}
+spatial_auto_dist=data.frame(bandwidth=seq(0.5,34,0.5),moran_gr=moran_gr,moran_ub=moran_ub,r_gr=r_gr,rho_gr=rho_gr,r_ub=r_ub,rho_ub=rho_ub)
+
+
+
+

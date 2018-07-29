@@ -1,0 +1,153 @@
+library(data.table)
+library(splm)
+library(plm)
+library(systemfit)
+library(caret)
+
+weightfun<-function (distman,dist) {
+	weight=ifelse(distman<=dist & distman>0,exp(-0.5*(distman/dist)^2),0)
+      a=nrow(weight)
+         for (i in 1:a) {
+            if (sum(weight[i,])>0) {
+             weight[i,]=weight[i,]/sum(weight[i,])
+             }else{
+                  weight[i,]=0      
+                }
+}
+return(weight)
+}
+
+all=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv",sep=",")
+man=all[all$mark==0 & all$aa==0,]
+mandist<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distman.csv")
+
+distman=data.matrix(mandist)
+distance=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distman.csv",sep=",")
+distance=data.matrix(distance)
+
+weight=weightfun(distance,1.5)
+w_yg=c()
+w_ub=c()
+for (i in 1:183) {
+temp_yg=weight%*%man$log_yg[((i-1)*55+1):(i*55)]
+w_yg=c(w_yg,temp_yg)
+temp_ub=weight%*%man$log_ub[((i-1)*55+1):(i*55)]
+w_ub=c(w_ub,temp_ub)
+}
+
+man$w_yg=w_yg
+man$w_ub=w_ub
+man_pall=man
+
+man_pall$log_yg_rev=man_pall$log_yg-0.983*man_pall$w_yg
+man_pall$log_ub_rev=man_pall$log_ub-0.8796*man_pall$w_ub
+
+man_pall_weekend=man_pall[man_pall$weekday>5,]
+man_pall_weekday=man_pall[man_pall$weekday<6,]
+man_pall_weekend$log_yg_rev=man_pall_weekend$log_yg-1.0003*man_pall_weekend$w_yg
+man_pall_weekend$log_ub_rev=man_pall_weekend$log_ub-0.822*man_pall_weekend$w_ub
+man_pall_weekday$log_yg_rev=man_pall_weekday$log_yg-0.9611*man_pall_weekday$w_yg
+man_pall_weekday$log_ub_rev=man_pall_weekday$log_ub-0.8937*man_pall_weekday$w_ub
+
+oman=all[all$mark==1,]
+outman<-fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\distoman_no_airport.csv")
+
+distoman=data.matrix(outman)
+
+weight1=weightfun(distoman,11)
+weightg=weightfun(distoman,6)
+
+w_ub=c()
+w_y=c()
+w_g=c()
+for (i in 1:183) {
+
+temp_ub=weight1%*%oman$log_ub[((i-1)*157+1):(i*157)]
+w_ub=c(w_ub,temp_ub)
+temp_y=weight1%*%oman$log_yt[((i-1)*157+1):(i*157)]
+w_y=c(w_y,temp_y)
+temp_g=weightg%*%oman$log_gt[((i-1)*157+1):(i*157)]
+w_g=c(w_g,temp_g)
+}
+
+oman$w_ub=w_ub
+oman$w_y=w_y
+oman$w_g=w_g
+
+oman_pall=oman
+
+oman_pall$log_y_rev=oman_pall$log_yt-0.527*oman_pall$w_y
+oman_pall$log_g_rev=oman_pall$log_gt-0.03*oman_pall$w_g
+oman_pall$log_ub_rev=oman_pall$log_ub-0.142*oman_pall$w_ub
+
+all_air=all[(all$zcta=="11430" | all$zcta=="11371"),]
+air_pall=all_air
+
+###air
+air_test=air_pall[,c(14,16:30)]
+vifcor(air_test,th=0.5)
+test<-manova(cbind(log_yg,log_ub)~ct+pd+ep+h75+vo+da+ne+na+ms+bs+ps+br+gp+hr+wh+Comercial,data=air_pall)
+summary(test)
+
+
+yg_air=log_yg~Comercial+gp+hr+wh
+ub_air=log_ub~Comercial+gp+hr+wh
+inst1_air=~Comercial+gp+hr+wh+ct
+inst2_air=~Comercial+gp+hr+wh+ct
+inst_air=list(inst1_air,inst2_air)
+eq_air=list(yellow=yg_air,uber=ub_air)
+ests3s1_air=systemfit(eq_air,method="3SLS",inst=inst_air,data=air_pall)
+summary(ests3s1_air)
+
+####
+library(usdm)
+oman_test=oman_pall[,c(14,16:30)]
+vifcor(oman_test,th=0.5)
+test<-manova(cbind(log_yt,log_gt,log_ub)~ct+pd+ep+h75+vo+da+ne+na+ms+bs+ps+br+gp+hr+wh+Comercial,data=oman_pall)
+
+###outman
+y_outman=log_y_rev~ct+da+ne+bs+br+wh
+ub_outman=log_ub_rev~ct+vo+da+ne+bs+ps+br+gp+wh
+g_outman=log_g_rev~ct+vo+da+ne+ps+br+wh
+inst1_outman=~ct+da+ne+bs+br+wh
+inst2_outman=~ct+vo+da+ne+bs+ps+br+gp+wh
+inst3_outman=~ct+vo+da+ne+ps+br+wh
+inst_outman=list(inst1_outman,inst2_outman,inst3_outman)
+eq_outman=list(yellow=y_outman,uber=ub_outman,green=g_outman)
+
+###outman est
+ests3s1_out=systemfit(eq_outman,method="3SLS",inst=inst_outman,data=oman_pall)
+summary(ests3s1_out)
+logLik(ests3s1_out)
+
+
+
+###man
+man_test=man_pall[,c(14,16:30)]
+vifcor(man_test,th=0.5)
+test<-manova(cbind(log_yt,log_gt,log_ub)~ct+pd+ep+h75+vo+da+ne+na+ms+bs+ps+br+gp+hr+wh+Comercial,data=man_pall)
+summary(test)
+
+
+yg_man=log_yg_rev~vo+da+ne+bs+ps+br
+ub_man=log_ub_rev~vo+da+ne+ms+bs+gp
+inst1_man=~vo+da+ne+bs+ps+br
+inst2_man=~vo+da+ne+ms+bs+gp
+inst_man=list(inst1_man,inst2_man)
+eq_man=list(yellow=yg_man,uber=ub_man)
+
+
+ests3s1_man_weekday=systemfit(eq_man,method="3SLS",inst=inst_man,data=man_pall_weekday)
+summary(ests3s1_man_weekday)
+
+
+yg_man=log_yg_rev~vo+da+ne+bs+ps+br
+ub_man=log_ub_rev~vo+da+ne+ms+ps+gp
+inst1_man=~vo+da+ne+bs+ps+br
+inst2_man=~vo+da+ne+ms+ps+gp
+inst_man=list(inst1_man,inst2_man)
+eq_man=list(yellow=yg_man,uber=ub_man)
+ests3s1_man_weekend=systemfit(eq_man,method="3SLS",inst=inst_man,data=man_pall_weekend)
+summary(ests3s1_man_weekend)
+
+

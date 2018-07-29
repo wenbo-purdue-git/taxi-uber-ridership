@@ -1,0 +1,65 @@
+library(data.table)
+
+data=fread("C:\\temp\\OneDrive - purdue.edu\\paper 2016\\papers\\4.taxi uber -transportation\\rev\\daily_rev.csv")
+
+list1=unique(data$zcta)
+p_val_yu=c()
+p_val_yg=c()
+p_val_gu=c()
+mark=c()
+
+for (zcta1 in list1) {
+data1=data[data$zcta==zcta1,]
+if (data1$mark[1]==0) {
+p_val_temp=cor.test(data1$log_yg,data1$log_ub,method="pearson",alternative="two.sided")$p.value 
+p_val_yu=c(p_val_yu,p_val_temp)
+p_val_yg=c(p_val_yg,0)
+p_val_gu=c(p_val_gu,0)
+mark=c(mark,data1$mark[1])
+}
+else {
+p_val_temp=cor.test(data1$log_yt,data1$log_ub,method="pearson",alternative="two.sided")$p.value 
+p_val_temp1=cor.test(data1$log_gt,data1$log_ub,method="pearson",alternative="two.sided")$p.value 
+p_val_temp2=cor.test(data1$log_gt,data1$log_yt,method="pearson",alternative="two.sided")$p.value
+p_val_yu=c(p_val_yu,p_val_temp)
+p_val_yg=c(p_val_yg,p_val_temp2)
+p_val_gu=c(p_val_gu,p_val_temp1)
+mark=c(mark,data1$mark[1])
+}
+
+}
+
+correlation=data.frame(id=c(1:214),zcta=list1,mark=mark,p_val_yu=p_val_yu,p_val_yg=p_val_yg,p_val_gu=p_val_gu)
+
+
+
+
+
+list1=unique(data$zcta)
+p_val_yu=c()
+p_val_yg=c()
+p_val_gu=c()
+mark=c()
+
+for (zcta1 in list1) {
+data1=data[data$zcta==zcta1,]
+if (data1$mark[1]==0) {
+p_val_temp=cor.test(data1$log_yg,data1$log_ub,method="pearson",alternative="two.sided")$estimate[['cor']] 
+p_val_yu=c(p_val_yu,p_val_temp)
+p_val_yg=c(p_val_yg,0)
+p_val_gu=c(p_val_gu,0)
+mark=c(mark,data1$mark[1])
+}
+else {
+p_val_temp=cor.test(data1$log_yt,data1$log_ub,method="pearson",alternative="two.sided")$estimate[['cor']]
+p_val_temp1=cor.test(data1$log_gt,data1$log_ub,method="pearson",alternative="two.sided")$estimate[['cor']]
+p_val_temp2=cor.test(data1$log_gt,data1$log_yt,method="pearson",alternative="two.sided")$estimate[['cor']]
+p_val_yu=c(p_val_yu,p_val_temp)
+p_val_yg=c(p_val_yg,p_val_temp2)
+p_val_gu=c(p_val_gu,p_val_temp1)
+mark=c(mark,data1$mark[1])
+}
+
+}
+
+correlation=data.frame(id=c(1:214),zcta=list1,mark=mark,p_val_yu=p_val_yu,p_val_yg=p_val_yg,p_val_gu=p_val_gu)
